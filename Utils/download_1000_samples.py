@@ -1,3 +1,6 @@
+
+from typing import List
+
 import csv
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -8,8 +11,8 @@ import random
 import pandas as pd  # Để xuất Excel (pip install pandas openpyxl nếu chưa có)
 
 # ====================== CẤU HÌNH ======================
-CSV_FILE = "products-0-200000.csv"  # File CSV chứa ID sản phẩm
-ID_COLUMN = "id"  # Tên cột chứa ID
+CSV_FILE = "products-0-200000.csv"
+ID_COLUMN = "id"
 
 BASE_URL = "https://api.tiki.vn/product-detail/api/v1/products/"
 
@@ -19,46 +22,69 @@ headers = {
     "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
     "Accept-Encoding": "gzip, deflate, br, zstd",
     "Referer": "https://tiki.vn/",
-    "Origin": "https://tiki.vn",  # Bắt buộc để tránh block
+    "Origin": "https://tiki.vn",
     "Connection": "keep-alive",
 }
 
+# Fields muốn lấy từ mỗi sản phẩm
+FIELDS = ['id', 'name', 'url_key', 'price', 'description', 'images']
 MAX_WORKERS = 20  # 20-30 để tránh rate limit (Tiki chịu tốt ~20-30 req/s)
 RETRY_COUNT = 3  # Thử lại từng ID tối đa 3 lần nếu lỗi
 MAX_RETRY_ROUNDS = 5  # Số vòng retry toàn bộ failed IDs (để đảm bảo lấy đủ)
 ADD_DELAY = True  # Delay ngẫu nhiên 0.1-0.5s để giống người thật, tránh block
 
-# Fields muốn lấy từ mỗi sản phẩm
-FIELDS = ['id', 'name', 'url_key', 'price', 'description', 'images']
-
-
 # =====================================================
-
-def read_ids_from_csv(file_path, column_name="id"):
-    """Đọc ID từ CSV, loại trùng, hỗ trợ URL"""
+# Read 1000 samples from file_path
+def read_ids_from_csv(file_path: str, column_name: str = "id", max_samples: int = 1000, unique: bool = True) -> List[int]:
+    """
+    Read up to max_samples IDs from CSV in file order.
+    - column_name: header to look for (case-insensitive).
+    - max_samples: stop after collecting this many valid IDs.
+    - unique: if True, return unique IDs (first occurrence kept); if False, allow duplicates.
+    """
     if not os.path.exists(file_path):
-        print(f"Không tìm thấy file: {file_path}")
+        print(f"Can not find file: {file_path}")
         return []
 
-    ids = set()  # Sử dụng set để loại trùng tự động
+    ids_list = []
+    seen = set() if unique else None
+
     with open(file_path, mode='r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
+            # stop when reached required number of samples
+            if len(ids_list) >= max_samples:
+                break
+
             id_val = row.get(column_name) or row.get(column_name.lower()) or row.get(column_name.upper())
+            if id_val is None:
+                continue
             id_val = str(id_val).strip()
+
+            # direct numeric id
             if id_val.isdigit():
-                ids.add(int(id_val))
+                candidate = int(id_val)
+            # tiki.vn product url pattern
             elif "tiki.vn" in id_val and "-p" in id_val:
                 try:
                     product_id = id_val.split("-p")[-1].split(".")[0].split("?")[0]
                     if product_id.isdigit():
-                        ids.add(int(product_id))
-                except:
+                        candidate = int(product_id)
+                    else:
+                        continue
+                except Exception:
                     continue
-    ids = list(ids)  # Chuyển set về list
-    print(f"Đã đọc {len(ids)} ID hợp lệ (duy nhất, không trùng) từ file '{file_path}'")
-    return ids
+            else:
+                continue
 
+            if unique:
+                if candidate in seen:
+                    continue
+                seen.add(candidate)
+            ids_list.append(candidate)
+
+    print(f"Đã đọc {len(ids_list)} ID hợp lệ (the first {max_samples} samples, unique={unique}) từ file '{file_path}'")
+    return ids_list
 
 def fetch_product(product_id):
     """Lấy chi tiết 1 sản phẩm (single ID) và extract fields cần thiết"""
@@ -101,8 +127,6 @@ def fetch_product(product_id):
                 continue
             print(f"Lỗi cuối cùng với ID {product_id}: {e}")
     return None
-
-
 # =================== CHẠY CHÍNH =====================
 print("Bắt đầu crawl dữ liệu sản phẩm Tiki từ file CSV...\n")
 
@@ -148,7 +172,6 @@ for round_num in range(1, MAX_RETRY_ROUNDS + 1):
         with open(f"failed_ids_round_{round_num}.txt", "w") as f:
             f.write("\n".join(map(str, failed_ids)))
         print(f"Đã lưu {len(failed_ids)} ID failed tạm thời vào failed_ids_round_{round_num}.txt")
-
 # =================== KẾT QUẢ ========================
 print(f"\nHOÀN TẤT SAU {round_num} VÒNG RETRY!")
 print(f"Tổng sản phẩm lấy thành công: {len(all_products)} / {total_target}")
