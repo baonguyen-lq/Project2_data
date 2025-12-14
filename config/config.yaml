@@ -1,0 +1,45 @@
+crawler:
+  input_csv: "data/raw/products-0-200000.csv"  # Path to input CSV file containing product IDs
+  id_column: "id"  # Column name for product IDs in CSV (case-insensitive)
+  base_url: "https://api.tiki.vn/product-detail/api/v1/products/"  # API endpoint
+  max_workers: 20  # Number of concurrent threads for crawling
+  retry_rounds: 5  # Number of retry rounds for failed IDs
+  retry_count_per_id: 3  # Retries per individual ID fetch
+  add_delay: true  # Add random delay (0.1-0.5s) to mimic human behavior
+  timeout_seconds: 15  # Request timeout
+  headers:  # Custom HTTP headers
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+    Accept: "application/json, text/plain, */*"
+    Accept-Language: "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7"
+    Accept-Encoding: "gzip, deflate, br, zstd"
+    Referer: "https://tiki.vn/"
+    Origin: "https://tiki.vn"
+    Connection: "keep-alive"
+
+cleaner:
+  tiki_footer: "Giá sản phẩm trên Tiki đã bao gồm thuế theo luật hiện hành"
+  items_per_file: 1000
+
+splitter:
+  items_per_file: 1000  # Number of items per split file
+  output_prefix: "tiki_part_"  # Prefix for split files (e.g., tiki_part_001.json)
+
+monitor:
+  check_interval_seconds: 60  # Interval to check process status
+  script_to_monitor: "crawler.py"  # Main script to monitor
+  auto_restart: true  # Auto-restart if down
+  alert_email: true  # Send email alerts
+  email:
+    from: "alert@tiki-crawler.com"
+    to: "admin@example.com"
+    server: "smtp.example.com"
+    port: 587
+    username: "user"
+    password: "pass"  # Use env var in prod: ${EMAIL_PASS}
+
+paths:
+  raw: "data/raw"
+  processed: "data/processed"
+  failed: "data/failed"
+  output: "output"
+  logs: "logs"
