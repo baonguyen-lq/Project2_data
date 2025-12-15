@@ -1,4 +1,11 @@
 # Crawling Data Project
+
+## Table of Contents
+- [Introduction](#introduction)
+- [Key features and Learnings](#key-features-and-learnings)
+- [File Structure](#file-structure)
+- [Installation & Usage](#installation--usage)
+
 ___
 ## Introduction
 
