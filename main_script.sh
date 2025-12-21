@@ -1,54 +1,59 @@
 #!/bin/bash
+set -e  # Thoát ngay nếu có lệnh lỗi (có thể tắt bằng comment nếu muốn continue khi lỗi)
 
-# Tiki ETL Runner - Chạy toàn bộ pipeline từ đầu đến cuối
-# Usage: ./run_all_etl.sh
-# Requirements: Python 3+, pip installed
+# ==================== CẤU HÌNH ====================
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_DIR="$PROJECT_DIR/scripts"
+LOG_DIR="$PROJECT_DIR/logs"
+LOG_FILE="$LOG_DIR/cron_$(date +%Y%m%d_%H%M%S).log"
+REQUIREMENTS="$PROJECT_DIR/requirements.txt"
 
-set -e  # Exit nếu lỗi (bật/tắt tùy ý)
+# Tạo thư mục log nếu chưa có
+mkdir -p "$LOG_DIR"
 
-# Cấu hình (sửa nếu cần)
-SCRIPTS_DIR="scripts"
-LOG_FILE="logs/etl_run.log"
-REQUIREMENTS="requirements.txt"
+echo "=================================================================" | tee -a "$LOG_FILE"
+echo "BẮT ĐẦU CRAWLING - $(date)" | tee -a "$LOG_FILE"
+echo "Dự án: $PROJECT_DIR" | tee -a "$LOG_FILE"
+echo "=================================================================" | tee -a "$LOG_FILE"
 
-# Kiểm tra và cài thư viện
+# ==================== CÀI ĐẶT THƯ VIỆN ====================
 if [ -f "$REQUIREMENTS" ]; then
-    echo "Cài đặt thư viện từ $REQUIREMENTS..."
-    pip install -r $REQUIREMENTS >> $LOG_FILE 2>&1
+    echo "Cài đặt/cập nhật thư viện từ requirements.txt..." | tee -a "$LOG_FILE"
+    pip3 install -r "$REQUIREMENTS" >> "$LOG_FILE" 2>&1
 else
-    echo "Không tìm thấy $REQUIREMENTS. Bỏ qua cài đặt."
+    echo "Không tìm thấy requirements.txt → bỏ qua cài đặt." | tee -a "$LOG_FILE"
 fi
 
-# Chạy từng script theo thứ tự
+# ==================== HÀM CHẠY SCRIPT ====================
 run_script() {
-    script_path="$SCRIPTS_DIR/$1"
-    if [ -f "$script_path" ]; then
-        echo "Chạy $1..."
-        python "$script_path" >> $LOG_FILE 2>&1
-        if [ $? -eq 0 ]; then
-            echo "$1 hoàn thành thành công."
-        else
-            echo "Lỗi khi chạy $1. Kiểm tra $LOG_FILE."
-        fi
-    else
-        echo "Không tìm thấy $script_path."
+    local script_name="$1"
+    local script_path="$SCRIPTS_DIR/$script_name"
+
+    if [ ! -f "$script_path" ]; then
+        echo "KHÔNG TÌM THẤY: $script_path → BỎ QUA" | tee -a "$LOG_FILE"
+        return 1
     fi
+
+    echo "Đang chạy: $script_name ..." | tee -a "$LOG_FILE"
+    python3 "$script_path" >> "$LOG_FILE" 2>&1
+
+    if [ $? -eq 0 ]; then
+        echo "$script_name → HOÀN THÀNH THÀNH CÔNG" | tee -a "$LOG_FILE"
+    else
+        echo "$script_name → CÓ LỖI (xem log chi tiết ở trên)" | tee -a "$LOG_FILE"
+        # Không exit toàn script nếu muốn tiếp tục các bước sau (comment dòng dưới nếu cần)
+        # exit 1
+    fi
+    echo "--------------------------------------------------" | tee -a "$LOG_FILE"
 }
 
-# Thứ tự chạy chính
+# ==================== CHẠY THEO THỨ TỰ ====================
 run_script "01_run_crawler.py"
 run_script "02_clean_data.py"
 run_script "03_split_data.py"
 run_script "04_validate_failed.py"
 
-# Chạy monitor như background (daemon)
-monitor_script="$SCRIPTS_DIR/05_monitor.py"
-if [ -f "$monitor_script" ]; then
-    echo "Chạy monitor (05_monitor.py) ở background..."
-    nohup python "$monitor_script" >> $LOG_FILE 2>&1 &
-    echo "Monitor started (PID: $!). Kiểm tra $LOG_FILE để theo dõi."
-else
-    echo "Không tìm thấy $monitor_script."
-fi
-
-echo "HOÀN TẤT TOÀN BỘ PIPELINE! Log chi tiết ở $LOG_FILE."
+# ==================== KẾT THÚC ====================
+echo "HOÀN TẤT TOÀN BỘ PIPELINE - $(date)" | tee -a "$LOG_FILE"
+echo "Log chi tiết: $LOG_FILE" | tee -a "$LOG_FILE"
+echo "=================================================================" | tee -a "$LOG_FILE"

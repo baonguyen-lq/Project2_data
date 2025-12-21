@@ -1,7 +1,9 @@
 import csv
+import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import pandas as pd
 import requests
 import time
 import random
@@ -139,5 +141,32 @@ def run_crawler(all_ids):
             with open(f"failed_ids_round_{round_num}.txt", "w") as f:
                 f.write("\n".join(map(str, failed_ids)))
 
+    # =================== KẾT QUẢ CUỐI =====================
+    total_time = time.time() - start_time
+    success_rate = len(all_products) / total_target * 100
+    avg_time_per_id = sum(times_per_id) / len(times_per_id) if times_per_id else 0
+    total_requests = len(times_per_id)
+
+    print(f"\n{'=' * 70}")
+    print(f"HOÀN TẤT CRAWL TIKI!")
+    print(f"{'=' * 70}")
+    print(f"Thời gian chạy toàn bộ       : {str(timedelta(seconds=int(total_time)))}")
+    print(f"Tổng số request đã gửi       : {total_requests:,}")
+    print(f"Thời gian trung bình mỗi ID  : {avg_time_per_id:.3f} giây")
+    print(f"Tốc độ trung bình            : {1 / avg_time_per_id:.1f} ID/giây")
+    print(f"Thành công                   : {len(all_products):,}/{total_target:,} ({success_rate:.2f}%)")
+    print(f"Thất bại cuối cùng           : {len(failed_ids):,}")
+    print(f"{'=' * 70}")
+    # Lưu kết quả
+    output_json = "output/tiki_products_result.json"
+    with open(output_json, "w", encoding="utf-8") as f:
+        json.dump(all_products, f, ensure_ascii=False, indent=2)
+    print(f"\nĐã lưu JSON: {output_json}")
+
+    if failed_ids:
+        with open("output/failed_ids_final.txt", "w") as f:
+            f.write("\n".join(map(str, failed_ids)))
+        print(f"\n→ {len(failed_ids):,} ID thất bại cuối cùng → failed_ids_final.txt")
+        print("   Copy file này làm input mới để crawl tiếp!")
     # Trả về kết quả (để script gọi dùng)
     return all_products, failed_ids
