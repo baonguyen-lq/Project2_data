@@ -54,8 +54,12 @@ Project2_data/
 
 ```
 ___
-
-
+## Features
+- [x] Crawl 200,000 product records from website.
+- [x] Normalize fields data of the records and save files with 1000 records in each.
+- [ ] Add retry the crawling for fail products.
+- [ ] Monitor processes and send notification to a platform.
+---
 ## Installation & Usage
 ### 1. Clone Repo
 ~~~
